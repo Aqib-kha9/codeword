@@ -9,43 +9,6 @@ import Mascot from "./Mascot";
 const INTRO =
   "Ka haal ba bhaiya? Ham Chotu bani — tohar raaz ke rakhwala. Chithhi likh, ham taala laga deb.";
 
-// Floating mode ke chhota dibba me kaam aave wala CSS. Media query ke andar
-// baakir desktop pe kuchh asar na kare.
-const FLOAT_CSS = `
-@media (max-width: 640px) {
-  .app-float .card.floating-card {
-    position: fixed;
-    left: 8px;
-    right: 8px;
-    bottom: 8px;
-    z-index: 40;
-    margin: 0;
-    max-height: 88vh;
-    overflow-y: auto;
-    border-radius: 16px;
-    box-shadow: 0 14px 44px rgba(20, 20, 15, 0.24);
-    animation: slide-up 0.28s ease-out;
-  }
-  .app-float .floating-card .mascot { display: none; }
-  .app-float .floating-card .field { margin-bottom: 10px; }
-  .app-float .floating-card .field > label { margin-bottom: 4px; font-size: 0.78rem; }
-  .app-float .floating-card textarea { min-height: 62px; }
-  .app-float .floating-card .remember { margin-top: 6px; }
-  .app-float .floating-card .actions-main { flex-wrap: nowrap; gap: 6px; }
-  .app-float .floating-card .actions-main .btn {
-    flex: 1 1 0;
-    min-width: 0;
-    padding: 11px 6px;
-    font-size: 0.82rem;
-    white-space: nowrap;
-  }
-}
-@keyframes slide-up {
-  from { transform: translateY(28px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-`;
-
 export default function SafeTextApp() {
   const [input, setInput] = useState("");
   const [password, setPassword] = useState("");
@@ -58,10 +21,9 @@ export default function SafeTextApp() {
   const [speak, setSpeak] = useState(INTRO);
   // Konsa khaana me gadbad ba — uhe laal karke dikha de.
   const [alertField, setAlertField] = useState("");
+  // Chhota popup khula ba ki band.
+  const [open, setOpen] = useState(false);
   const inputRef = useRef(null);
-
-  // Mobile ke khatir "floating" chhota roop. Kabhi-kabhi he user khud khola.
-  const [compact, setCompact] = useState(false);
 
   const busy = !!busyAction;
 
@@ -90,13 +52,20 @@ export default function SafeTextApp() {
     } catch {
       /* ignore */
     }
-    inputRef.current?.focus();
   }, []);
 
-  // Focus rakhbe wale fields ke liye global ids — floating se bhi kaam aai.
-  const focusInput = useCallback((delay = 0) => {
-    setTimeout(() => document.getElementById("input")?.focus(), delay);
-  }, []);
+  // Popup khulal to seedha text box me cursor chala jai; Esc dabawe to band.
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => document.getElementById("input")?.focus(), 220);
+    }
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   const persistPassword = useCallback((value, shouldRemember) => {
     try {
@@ -135,12 +104,16 @@ export default function SafeTextApp() {
     }
   }
 
+  function focusInput() {
+    setTimeout(() => document.getElementById("input")?.focus(), 60);
+  }
+
   async function run(action) {
     if (!input.trim()) {
       setSpeak("Arre bhaiya! Pehle text to likh do. Khaali baksaa me ham ka karab?");
       setMood("err");
       setAlertField("input");
-      focusInput(60);
+      focusInput();
       return;
     }
     if (!password) {
@@ -187,7 +160,7 @@ export default function SafeTextApp() {
           : err?.message || "Uff! Kuchh gadbad ho gel. Fer se koshish kar bhaiya.";
       setSpeak(line);
       setMood("err");
-      focusInput(60);
+      focusInput();
     } finally {
       setBusyAction("");
     }
@@ -209,123 +182,162 @@ export default function SafeTextApp() {
     setMood("idle");
     setAlertField("");
     setSpeak("Sab saaf! Aagla message le aawa bhaiya.");
-    focusInput(60);
+    focusInput();
   }
 
   return (
-    <main className={`wrap${compact ? " app-float" : ""}`}>
-      <style dangerouslySetInnerHTML={{ __html: FLOAT_CSS }} />
-
+    <main className="wrap">
       <header className="hero">
         <h1>SafeText</h1>
         <p>
-          Tohar baat chori-chori rakhe ke ba? Likh de, taala laga de, phir chain
-          se bhej de.
+          Tohar baat chori-chori rakhe ke ba? Side ke chhota button daba, taala
+          laga de, phir chain se bhej de.
         </p>
       </header>
 
-      <section className={`card${compact ? " floating-card" : ""}`}>
-        <button
-          type="button"
-          className="float-toggle"
-          onClick={() => {
-            setCompact((v) => !v);
-            focusInput(80);
-          }}
-          aria-label={compact ? "Bada kar" : "Chhota floating kar"}
-          title={compact ? "Bada kar" : "Chhota floating kar"}
-        >
-          {compact ? "\u2197" : "\u2198"}
-        </button>
+      {/* Peeche ka dhundhla pardaa — dabawe to popup band. */}
+      <div
+        className={`drawer-backdrop${open ? " show" : ""}`}
+        onClick={() => setOpen(false)}
+        aria-hidden="true"
+      />
 
-        <Mascot
-          mood={mood}
-          message={speak}
-          tone={mood === "err" ? "error" : mood === "ok" ? "ok" : ""}
-        />
-
-        <div className={`field${alertField === "input" ? " field-error" : ""}`}>
-          <label htmlFor="input">Text</label>
-          <textarea
-            id="input"
-            ref={inputRef}
-            value={input}
-            onChange={(e) => onInputChange(e.target.value)}
-            placeholder="Hian text chipka de…"
-            aria-invalid={alertField === "input"}
+      {/* Side me tairta chhota button. Ii dabawe popup khul jai. */}
+      <button
+        type="button"
+        className={`launcher${open ? " hide" : ""}`}
+        onClick={() => setOpen(true)}
+        aria-label="SafeText khol"
+        aria-expanded={open}
+      >
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+          <rect x="4" y="10.5" width="16" height="10" rx="2.4" fill="currentColor" />
+          <path
+            d="M8 10.5V8a4 4 0 0 1 8 0v2.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
           />
+          <circle cx="12" cy="15.4" r="1.5" fill="#ffffff" />
+        </svg>
+      </button>
+
+      {/* Side se nikalta chhota popup. */}
+      <aside className={`drawer${open ? " open" : ""}`} aria-hidden={!open}>
+        <div className="drawer-head">
+          <span className="drawer-title">SafeText</span>
+          <button
+            type="button"
+            className="drawer-close"
+            onClick={() => setOpen(false)}
+            aria-label="Band kar"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
         </div>
 
-        <div
-          className={`field${alertField === "password" ? " field-error" : ""}`}
-        >
-          <label htmlFor="password">Password</label>
-          <div className="password-row">
-            <input
-              id="password"
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => onPasswordChange(e.target.value)}
-              placeholder="Password likh de…"
-              autoComplete="off"
-              aria-invalid={alertField === "password"}
+        <div className="drawer-body">
+          <Mascot
+            mood={mood}
+            message={speak}
+            tone={mood === "err" ? "error" : mood === "ok" ? "ok" : ""}
+          />
+
+          <div className={`field${alertField === "input" ? " field-error" : ""}`}>
+            <label htmlFor="input">Text</label>
+            <textarea
+              id="input"
+              ref={inputRef}
+              value={input}
+              onChange={(e) => onInputChange(e.target.value)}
+              placeholder="Hian text chipka de…"
+              aria-invalid={alertField === "input"}
             />
-            <button
-              type="button"
-              className="toggle-eye"
-              onClick={() => setShowPassword((v) => !v)}
-            >
-              {showPassword ? "Lukaa" : "Dekha"}
-            </button>
           </div>
-          <label className="remember">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => onRememberChange(e.target.checked)}
-            />
-            <span>Browser me yaad rakh</span>
-          </label>
-        </div>
 
-        <div className="actions actions-main">
-          <button
-            type="button"
-            className="btn btn-primary btn-big"
-            onClick={() => run("encrypt")}
-            disabled={busy}
+          <div
+            className={`field${alertField === "password" ? " field-error" : ""}`}
           >
-            {busyAction === "encrypt" ? "Taala laga tani…" : "Taala laga (Encrypt)"}
-          </button>
-          <button
-            type="button"
-            className="btn btn-outline btn-big"
-            onClick={() => run("decrypt")}
-            disabled={busy}
-          >
-            {busyAction === "decrypt" ? "Taala khol tani…" : "Taala khol (Decrypt)"}
-          </button>
-          <button type="button" className="btn btn-ghost" onClick={clearAll}>
-            Mitaa
-          </button>
-        </div>
-
-        {result && (
-          <div className="field" style={{ marginTop: 18 }}>
-            <label htmlFor="output">Result</label>
-            <textarea id="output" value={result} readOnly />
-            <div className="actions">
+            <label htmlFor="password">Password</label>
+            <div className="password-row">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => onPasswordChange(e.target.value)}
+                placeholder="Password likh de…"
+                autoComplete="off"
+                aria-invalid={alertField === "password"}
+              />
               <button
                 type="button"
-                className="btn btn-ghost"
-                onClick={copyResult}
+                className="toggle-eye"
+                onClick={() => setShowPassword((v) => !v)}
               >
-                Copy kar
+                {showPassword ? "Lukaa" : "Dekha"}
               </button>
             </div>
+            <label className="remember">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => onRememberChange(e.target.checked)}
+              />
+              <span>Browser me yaad rakh</span>
+            </label>
           </div>
-        )}
-      </section>
+
+          <div className="actions actions-main">
+            <button
+              type="button"
+              className="btn btn-primary btn-big"
+              onClick={() => run("encrypt")}
+              disabled={busy}
+            >
+              {busyAction === "encrypt"
+                ? "Taala laga tani…"
+                : "Taala laga (Encrypt)"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-big"
+              onClick={() => run("decrypt")}
+              disabled={busy}
+            >
+              {busyAction === "decrypt"
+                ? "Taala khol tani…"
+                : "Taala khol (Decrypt)"}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={clearAll}>
+              Mitaa
+            </button>
+          </div>
+
+          {result && (
+            <div className="field" style={{ marginTop: 18 }}>
+              <label htmlFor="output">Result</label>
+              <textarea id="output" value={result} readOnly />
+              <div className="actions">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={copyResult}
+                >
+                  Copy kar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
 
       <footer className="footer">
         <p>

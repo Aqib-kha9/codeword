@@ -73,30 +73,127 @@ body {
     0 10px 30px rgba(20, 20, 15, 0.04);
 }
 
-/* Chhota floating roop me badle ke chhota button. */
-.float-toggle {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 2;
-  width: 32px;
-  height: 32px;
+/* Side me tairta chhota button. */
+.launcher {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  z-index: 50;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 12px 0 0 12px;
+  background: var(--accent);
+  color: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(37, 96, 79, 0.32);
+  transition: transform 0.22s ease, opacity 0.22s ease, background 0.15s ease;
+}
+
+.launcher:hover {
+  background: var(--accent-hover);
+}
+
+.launcher.hide {
+  transform: translateY(-50%) translateX(56px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Peeche ka dhundhla pardaa. */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(20, 24, 22, 0.28);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.22s ease, visibility 0.22s ease;
+}
+
+.drawer-backdrop.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Side se nikalta popup. */
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 60;
+  height: 100%;
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border-left: 1px solid var(--border);
+  box-shadow: -12px 0 40px rgba(20, 20, 15, 0.16);
+  transform: translateX(100%);
+  transition: transform 0.26s ease;
+}
+
+.drawer.open {
+  transform: translateX(0);
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.drawer-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.drawer-close {
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   background: #ffffff;
   color: #5b6166;
-  font-size: 1rem;
-  line-height: 1;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.float-toggle:hover {
+.drawer-close:hover {
   background: #f3f3f0;
-  color: var(--accent);
-  border-color: var(--accent);
+  color: var(--err-ink);
+  border-color: var(--err-border);
+}
+
+.drawer-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 18px 16px 26px;
+}
+
+.drawer-body .mascot {
+  margin-bottom: 16px;
+}
+
+.drawer-body textarea {
+  min-height: 110px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer,
+  .launcher,
+  .drawer-backdrop {
+    transition: none;
+  }
 }
 
 .field {
