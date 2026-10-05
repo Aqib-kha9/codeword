@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { encryptText, decryptText } from "../lib/crypto";
 import Mascot from "./Mascot";
+import {
+  bubbleSupported,
+  checkPermission,
+  requestPermission,
+  showBubble,
+  hideBubble,
+} from "../lib/floatingBubble";
 
 // Chotu ke pehlaa line. Ii fix rakhal baakir server aur client ke pehlaa
 // render ekke rakhe — hydration mismatch na ho.
@@ -21,9 +28,11 @@ export default function SafeTextApp() {
   const [speak, setSpeak] = useState(INTRO);
   // Konsa khaana me gadbad ba — uhe laal karke dikha de.
   const [alertField, setAlertField] = useState("");
-  // Chhota popup khula ba ki band.
-  const [open, setOpen] = useState(false);
   const inputRef = useRef(null);
+  // Floating taala (khali native Android app me) ke haal.
+  const [bubbleReady, setBubbleReady] = useState(false);
+  const [bubbleOn, setBubbleOn] = useState(false);
+  const [bubbleNote, setBubbleNote] = useState("");
 
   const busy = !!busyAction;
 
@@ -54,18 +63,10 @@ export default function SafeTextApp() {
     }
   }, []);
 
-  // Popup khulal to seedha text box me cursor chala jai; Esc dabawe to band.
+  // Floating taala khali native Android app me chale — web/browser me luko.
   useEffect(() => {
-    if (open) {
-      setTimeout(() => document.getElementById("input")?.focus(), 220);
-    }
-    if (!open) return;
-    const onKey = (e) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+    if (bubbleSupported()) setBubbleReady(true);
+  }, []);
 
   const persistPassword = useCallback((value, shouldRemember) => {
     try {
@@ -185,159 +186,162 @@ export default function SafeTextApp() {
     focusInput();
   }
 
+  // Floating taala chalu/band kare ke chhota kaam.
+  async function toggleBubble() {
+    try {
+      if (bubbleOn) {
+        await hideBubble();
+        setBubbleOn(false);
+        setBubbleNote("Taala hataa del bhaiya.");
+        return;
+      }
+      let perm = await checkPermission();
+      if (!perm || !perm.granted) {
+        await requestPermission();
+        perm = await checkPermission();
+      }
+      if (!perm || !perm.granted) {
+        setBubbleNote(
+          "Pahile permission de do bhaiya — settings me 'Display over other apps' chalu kar da, phir fer se daba."
+        );
+        return;
+      }
+      await showBubble();
+      setBubbleOn(true);
+      setBubbleNote(
+        "Ho gel! Ab app band kar ke dekho — phone ke side me taala tik-tikai rahi."
+      );
+    } catch {
+      setBubbleNote("Bubble na chalu ho paal — permission band ba ki na?");
+    }
+  }
+
   return (
     <main className="wrap">
       <header className="hero">
         <h1>SafeText</h1>
         <p>
-          Tohar baat chori-chori rakhe ke ba? Side ke chhota button daba, taala
-          laga de, phir chain se bhej de.
+          Tohar baat chori-chori rakhe ke ba? Likh de, taala laga de, phir chain
+          se bhej de.
         </p>
       </header>
 
-      {/* Peeche ka dhundhla pardaa — dabawe to popup band. */}
-      <div
-        className={`drawer-backdrop${open ? " show" : ""}`}
-        onClick={() => setOpen(false)}
-        aria-hidden="true"
-      />
+      <section className="card">
+        <Mascot
+          mood={mood}
+          message={speak}
+          tone={mood === "err" ? "error" : mood === "ok" ? "ok" : ""}
+        />
 
-      {/* Side me tairta chhota button. Ii dabawe popup khul jai. */}
-      <button
-        type="button"
-        className={`launcher${open ? " hide" : ""}`}
-        onClick={() => setOpen(true)}
-        aria-label="SafeText khol"
-        aria-expanded={open}
-      >
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
-          <rect x="4" y="10.5" width="16" height="10" rx="2.4" fill="currentColor" />
-          <path
-            d="M8 10.5V8a4 4 0 0 1 8 0v2.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
+        <div className={`field${alertField === "input" ? " field-error" : ""}`}>
+          <label htmlFor="input">Text</label>
+          <textarea
+            id="input"
+            ref={inputRef}
+            value={input}
+            onChange={(e) => onInputChange(e.target.value)}
+            placeholder="Hian text chipka de…"
+            aria-invalid={alertField === "input"}
           />
-          <circle cx="12" cy="15.4" r="1.5" fill="#ffffff" />
-        </svg>
-      </button>
+        </div>
 
-      {/* Side se nikalta chhota popup. */}
-      <aside className={`drawer${open ? " open" : ""}`} aria-hidden={!open}>
-        <div className="drawer-head">
-          <span className="drawer-title">SafeText</span>
+        <div
+          className={`field${alertField === "password" ? " field-error" : ""}`}
+        >
+          <label htmlFor="password">Password</label>
+          <div className="password-row">
+            <input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => onPasswordChange(e.target.value)}
+              placeholder="Password likh de…"
+              autoComplete="off"
+              aria-invalid={alertField === "password"}
+            />
+            <button
+              type="button"
+              className="toggle-eye"
+              onClick={() => setShowPassword((v) => !v)}
+            >
+              {showPassword ? "Lukaa" : "Dekha"}
+            </button>
+          </div>
+          <label className="remember">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => onRememberChange(e.target.checked)}
+            />
+            <span>Browser me yaad rakh</span>
+          </label>
+        </div>
+
+        <div className="actions actions-main">
           <button
             type="button"
-            className="drawer-close"
-            onClick={() => setOpen(false)}
-            aria-label="Band kar"
+            className="btn btn-primary btn-big"
+            onClick={() => run("encrypt")}
+            disabled={busy}
           >
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              <path
-                d="M6 6l12 12M18 6L6 18"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
+            {busyAction === "encrypt"
+              ? "Taala laga tani…"
+              : "Taala laga (Encrypt)"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline btn-big"
+            onClick={() => run("decrypt")}
+            disabled={busy}
+          >
+            {busyAction === "decrypt"
+              ? "Taala khol tani…"
+              : "Taala khol (Decrypt)"}
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={clearAll}>
+            Mitaa
           </button>
         </div>
 
-        <div className="drawer-body">
-          <Mascot
-            mood={mood}
-            message={speak}
-            tone={mood === "err" ? "error" : mood === "ok" ? "ok" : ""}
-          />
-
-          <div className={`field${alertField === "input" ? " field-error" : ""}`}>
-            <label htmlFor="input">Text</label>
-            <textarea
-              id="input"
-              ref={inputRef}
-              value={input}
-              onChange={(e) => onInputChange(e.target.value)}
-              placeholder="Hian text chipka de…"
-              aria-invalid={alertField === "input"}
-            />
-          </div>
-
-          <div
-            className={`field${alertField === "password" ? " field-error" : ""}`}
-          >
-            <label htmlFor="password">Password</label>
-            <div className="password-row">
-              <input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => onPasswordChange(e.target.value)}
-                placeholder="Password likh de…"
-                autoComplete="off"
-                aria-invalid={alertField === "password"}
-              />
+        {result && (
+          <div className="field" style={{ marginTop: 18 }}>
+            <label htmlFor="output">Result</label>
+            <textarea id="output" value={result} readOnly />
+            <div className="actions">
               <button
                 type="button"
-                className="toggle-eye"
-                onClick={() => setShowPassword((v) => !v)}
+                className="btn btn-ghost"
+                onClick={copyResult}
               >
-                {showPassword ? "Lukaa" : "Dekha"}
+                Copy kar
               </button>
             </div>
-            <label className="remember">
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={(e) => onRememberChange(e.target.checked)}
-              />
-              <span>Browser me yaad rakh</span>
-            </label>
           </div>
+        )}
 
-          <div className="actions actions-main">
-            <button
-              type="button"
-              className="btn btn-primary btn-big"
-              onClick={() => run("encrypt")}
-              disabled={busy}
-            >
-              {busyAction === "encrypt"
-                ? "Taala laga tani…"
-                : "Taala laga (Encrypt)"}
-            </button>
-            <button
-              type="button"
-              className="btn btn-outline btn-big"
-              onClick={() => run("decrypt")}
-              disabled={busy}
-            >
-              {busyAction === "decrypt"
-                ? "Taala khol tani…"
-                : "Taala khol (Decrypt)"}
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={clearAll}>
-              Mitaa
-            </button>
-          </div>
-
-          {result && (
-            <div className="field" style={{ marginTop: 18 }}>
-              <label htmlFor="output">Result</label>
-              <textarea id="output" value={result} readOnly />
-              <div className="actions">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={copyResult}
-                >
-                  Copy kar
-                </button>
-              </div>
+        {bubbleReady && (
+          <div className="bubble-box">
+            <div className="bubble-box-head">
+              <strong>Floating taala</strong>
+              <span className={`bubble-state${bubbleOn ? " on" : ""}`}>
+                {bubbleOn ? "Chalu" : "Band"}
+              </span>
             </div>
-          )}
-        </div>
-      </aside>
+            <p className="bubble-help">
+              Chalu kar de, phir app band kar — phone ke side me chhota taala
+              tik-tikai rahi. Uhe dabawe SafeText khul jai.
+            </p>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={toggleBubble}
+            >
+              {bubbleOn ? "Floating taala band kar" : "Floating taala chalu kar"}
+            </button>
+            {bubbleNote && <p className="bubble-note">{bubbleNote}</p>}
+          </div>
+        )}
+      </section>
 
       <footer className="footer">
         <p>

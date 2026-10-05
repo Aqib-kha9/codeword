@@ -1,0 +1,12 @@
+{
+    "appId": "com.safetext.app",
+    "appName": "SafeText",
+    "webDir": "out",
+    "server": {
+        "androidScheme": "https"
+    },
+    "android": {
+        "allowMixedContent": false,
+        "backgroundColor": "#f4f4f1"
+    }
+}
